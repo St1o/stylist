@@ -2,6 +2,8 @@
 
 Модель лица сюда не входит: на вход бинарная маска и положение головы (внутреннего
 конца) брови. Длины в пикселях, делить на масштаб (расстояние между глазами) нужно снаружи.
+Центр брови считается по точкам вдоль оси, поэтому загиб хвоста дальше примерно 90° эта
+геометрия не видит.
 """
 from __future__ import annotations
 
@@ -20,6 +22,9 @@ class BrowProfile:
     arch: float  # выпуклость осевой линии над хордой, px; + : дугой вверх
     width: np.ndarray  # толщина брови по точкам от головы к хвосту, px
     center: np.ndarray  # центр брови по тем же точкам, форма (bins, 2), x и y
+    head_tip: np.ndarray  # крайняя точка у носа (середина 2% пикселей по оси), x и y
+    tail_tip: np.ndarray  # крайняя точка хвоста, x и y
+    tail_turn: float  # на сколько хвост загибается вниз относительно тела брови, градусы
 
 
 def brow_profile(mask: np.ndarray, head: tuple[float, float], bins: int = 10) -> BrowProfile | None:
@@ -59,10 +64,20 @@ def brow_profile(mask: np.ndarray, head: tuple[float, float], bins: int = 10) ->
         normal = -normal  # «вверх»
     offsets = (center - center[0]) @ normal
     middle = offsets[bins // 3 : bins - bins // 3]
+
+    def pointing(vector: np.ndarray) -> float:  # + : смотрит вверх, - : вниз, в осях брови
+        return math.degrees(math.atan2(vector @ v, vector @ u))
+
+    body = center[bins // 2] - center[0]
+    tail = center[-1] - center[-(bins // 3) - 1]
+    low, high = np.percentile(s, [2, 98])
     return BrowProfile(
         length=float(hi - lo),
         axis_angle=float(angle),
         arch=float(middle.mean()),
         width=width,
         center=center,
+        head_tip=pts[s <= low].mean(axis=0),
+        tail_tip=pts[s >= high].mean(axis=0),
+        tail_turn=float(pointing(body) - pointing(tail)),
     )

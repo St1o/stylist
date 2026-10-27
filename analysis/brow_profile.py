@@ -98,7 +98,7 @@ def analyse(image_bgr: np.ndarray, model_path: str) -> dict | None:
         return None
     level, moved, roll = level_eyes(image_bgr, points)
     scale = float(np.linalg.norm(moved[OUTER_CORNER["right"]] - moved[OUTER_CORNER["left"]]))
-    out = {"roll": roll, "scale": scale, "image": level, "brows": {}}
+    out = {"roll": roll, "scale": scale, "image": level, "points": moved, "brows": {}}
     for side in ("right", "left"):
         mask = segment_brow(level, moved, side, scale)
         head = tuple(moved[BROW[side]["head"]])
@@ -130,6 +130,27 @@ def report(name: str, result: dict) -> None:
         print(f"  {side}: длина {p.length / scale:.2f}, ось {p.axis_angle:+.1f}°, дуга {p.arch / scale:+.3f}; ширина от головы к хвосту: {widths}")
 
 
+def balance(result: dict) -> dict | None:
+    """Сравнение левой и правой бровей на экране (слева на экране - правая бровь человека)."""
+    screen_left = result["brows"]["right"]["profile"]
+    screen_right = result["brows"]["left"]["profile"]
+    if screen_left is None or screen_right is None:
+        return None
+    scale, pts = result["scale"], result["points"]
+    midline = (pts[INNER_CORNER["right"]][0] + pts[INNER_CORNER["left"]][0]) / 2
+    out = {
+        # + : слева на экране длиннее / ниже / сильнее загнут
+        "length_diff": (screen_left.length - screen_right.length) / scale,
+        "head_lower_left": (screen_left.head_tip[1] - screen_right.head_tip[1]) / scale,
+        "gap": (screen_right.head_tip[0] - screen_left.head_tip[0]) / scale,
+        "gap_shift_right": ((screen_right.head_tip[0] + screen_left.head_tip[0]) / 2 - midline) / scale,
+    }
+    for name, p in (("left", screen_left), ("right", screen_right)):
+        out[f"tail_drop_{name}"] = (p.tail_tip[1] - p.head_tip[1]) / scale
+        out[f"tail_turn_{name}"] = p.tail_turn
+    return out
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Профиль бровей по снимкам")
     parser.add_argument("--model", required=True, help="файл face_landmarker.task")
@@ -147,6 +168,16 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{path.name}: лицо не найдено")
             continue
         report(path.name, result)
+        diff = balance(result)
+        if diff:
+            print(
+                "  экран слева/справа: хвост ниже головы {:+.3f}/{:+.3f} (загиб хвоста {:+.0f}°/{:+.0f}°); "
+                "длиннее слева на {:+.3f}; голова слева ниже на {:+.3f}; промежуток между головами {:.3f}, "
+                "сдвиг промежутка вправо от середины глаз {:+.3f}".format(
+                    diff["tail_drop_left"], diff["tail_drop_right"], diff["tail_turn_left"], diff["tail_turn_right"],
+                    diff["length_diff"], diff["head_lower_left"], diff["gap"], diff["gap_shift_right"],
+                )
+            )
         cv2.imwrite(str(args.out / f"{path.stem}_brows.png"), draw(result))
 
 

@@ -41,6 +41,15 @@ class BrowGeometryTest(unittest.TestCase):
         mirrored = brow_profile(brow_mask(droop, lambda x: 5, flip=True), head=(260 - 1 - 20, 100))
         self.assertAlmostEqual(mirrored.axis_angle, left_side.axis_angle, delta=0.5)
 
+    def test_tail_turn_and_tips(self):
+        straight = brow_profile(brow_mask(lambda x: 100, lambda x: 5), head=(20, 100))
+        self.assertLess(abs(straight.tail_turn), 5)
+        self.assertAlmostEqual(straight.head_tip[0], 20, delta=8)
+        self.assertAlmostEqual(straight.tail_tip[0], 220, delta=8)
+        hooked = brow_profile(brow_mask(lambda x: 100 if x < 140 else 100 + 0.8 * (x - 140), lambda x: 5), head=(20, 100))
+        self.assertGreater(hooked.tail_turn, 20)
+        self.assertGreater(hooked.tail_tip[1], hooked.head_tip[1] + 30)
+
     def test_too_few_pixels(self):
         mask = np.zeros((50, 50), np.uint8)
         mask[10, 10:15] = 1
