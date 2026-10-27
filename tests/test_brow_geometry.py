@@ -4,7 +4,7 @@ import unittest
 import cv2
 import numpy as np
 
-from analysis.brow_geometry import brow_profile, grow_zone, lid_gap, silhouette
+from analysis.brow_geometry import brow_profile, gap_profile, grow_zone, lid_gap, silhouette
 
 
 def brow_mask(center_y, half_width, x0=20, x1=220, size=(200, 260), flip=False):
@@ -79,6 +79,15 @@ class BrowGeometryTest(unittest.TestCase):
         core = np.ones((30, 30), np.uint8)
         core[10:20, 10:20] = 0
         self.assertEqual(int(silhouette(core, 1).sum()), 900)
+
+    def test_gap_profile_runs_from_inner_to_outer_corner(self):
+        mask = np.zeros((200, 200), np.uint8)
+        mask[60:81, 20:180] = 1  # бровь, нижний край на строке 80
+        # верхнее веко слева направо опускается: 100 -> 140
+        lid = np.array([[40, 100], [100, 120], [160, 140]], float)
+        self.assertEqual(gap_profile(mask, lid, count=3), [20.0, 40.0, 60.0])
+        # тот же глаз, но внутренний угол справа: порядок точек обратный
+        self.assertEqual(gap_profile(mask, lid[::-1], count=3), [60.0, 40.0, 20.0])
 
     def test_too_few_pixels(self):
         mask = np.zeros((50, 50), np.uint8)

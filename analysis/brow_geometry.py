@@ -74,6 +74,19 @@ def lid_gap(mask: np.ndarray, lid: tuple[float, float], band: int = 3) -> float 
     return None if len(rows) == 0 else float(lid[1] - rows.max())
 
 
+def gap_profile(mask: np.ndarray, lid: np.ndarray, count: int = 5) -> list[float | None]:
+    """Просвет бровь-веко в count точках вдоль глаза от внутреннего угла к внешнему, в пикселях.
+
+    lid - точки верхнего века (x, y) в порядке от внутреннего угла к внешнему. None там,
+    где над точкой века в маске брови нет.
+    """
+    lid = np.asarray(lid, dtype=float)
+    order = np.argsort(lid[:, 0])
+    xs = np.linspace(lid[0, 0], lid[-1, 0], count)
+    ys = np.interp(xs, lid[order, 0], lid[order, 1])
+    return [lid_gap(mask, (float(x), float(y))) for x, y in zip(xs, ys)]
+
+
 def brow_profile(mask: np.ndarray, head: tuple[float, float], bins: int = 10) -> BrowProfile | None:
     """Профиль брови или None, если в маске слишком мало пикселей."""
     ys, xs = np.nonzero(mask)

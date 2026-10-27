@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .brow_geometry import BrowProfile, brow_profile, grow_zone, lid_gap
+from .brow_geometry import BrowProfile, brow_profile, gap_profile, grow_zone, lid_gap
 
 # индексы канонической сетки MediaPipe; «правый/левый» - у человека на снимке
 EYE_RING = {
@@ -27,6 +27,8 @@ BROW = {
 }
 OUTER_CORNER = {"right": 33, "left": 263}
 LID_TOP = {"right": 159, "left": 386}  # середина верхнего века
+# верхнее веко от внутреннего угла глаза к внешнему
+LID_ARC = {"right": [133, 173, 157, 158, 159, 160, 161, 246, 33], "left": [362, 398, 384, 385, 386, 387, 388, 466, 263]}
 INNER_CORNER = {"right": 133, "left": 362}
 BINS = 10
 # Зона (светлая периферия вокруг ядра): порог слабее порога ядра и допустимый вылет за ядро.
@@ -123,6 +125,7 @@ def analyse(image_bgr: np.ndarray, model_path: str) -> dict | None:
             "zone": zone,
             "profile": brow_profile(mask, head, BINS),
             "lid_gap": lid_gap(mask, tuple(moved[LID_TOP[side]])),
+            "gap_profile": gap_profile(mask, moved[LID_ARC[side]]),
         }
     return out
 
@@ -150,6 +153,9 @@ def report(name: str, result: dict) -> None:
             print(f"  {side}: бровь не найдена")
             continue
         widths = " ".join(f"{w / scale:.3f}" for w in p.width)
+        along = result["brows"][side]["gap_profile"]
+        along_text = " ".join("-" if g is None else f"{g / scale:.3f}" for g in along)
+        print(f"  {side}: просвет бровь-веко вдоль глаза от внутреннего угла к внешнему: {along_text}")
         gap = result["brows"][side]["lid_gap"]
         gap_text = "нет" if gap is None else f"{gap / scale:.3f}"
         print(f"  {side}: просвет бровь-веко {gap_text}, длина {p.length / scale:.2f}, ось {p.axis_angle:+.1f}°, дуга {p.arch / scale:+.3f}; ширина от головы к хвосту: {widths}")
