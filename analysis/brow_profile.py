@@ -65,7 +65,17 @@ def level_eyes(image_bgr: np.ndarray, points: np.ndarray) -> tuple[np.ndarray, n
     return rotated, moved, roll
 
 
-def brow_darkness(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: float) -> tuple[np.ndarray, np.ndarray, float]:
+def face_limit(shape: tuple[int, int], points: np.ndarray, scale: float) -> np.ndarray:
+    """Овал лица модели чуть шире: за ним (фон, волосы у виска) бровь искать нельзя."""
+    limit = np.zeros(shape, np.uint8)
+    cv2.fillPoly(limit, [points[FACE_OVAL].astype(np.int32)], 1)
+    size = 2 * max(2, int(0.04 * scale)) + 1
+    return cv2.dilate(limit, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size)))
+
+
+def brow_darkness(
+    image_bgr: np.ndarray, points: np.ndarray, side: str, scale: float, limit: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray, float]:
     """Карта тонких тёмных структур, область поиска брови (без глаза) и порог ядра (Оцу)."""
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)[:, :, 0]
     spec = BROW[side]
@@ -79,6 +89,8 @@ def brow_darkness(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: f
     cv2.fillConvexPoly(eye, cv2.convexHull(points[EYE_RING[side]].astype(np.int32)), 255)
     eye = cv2.dilate(eye, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * margin + 1, 2 * margin + 1)))
     area[eye > 0] = 0
+    if limit is not None:
+        area[limit == 0] = 0
     # чёрная шляпа выделяет тёмные структуры тоньше ядра (брови), а широкую тень виска и волосы гасит
     size = max(5, int(0.14 * scale)) | 1
     thin_dark = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size)))
@@ -87,10 +99,10 @@ def brow_darkness(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: f
     return thin_dark, area, float(threshold)
 
 
-def segment_brow(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: float) -> np.ndarray:
+def segment_brow(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: float, limit: np.ndarray | None = None) -> np.ndarray:
     """Маска ядра брови: тонкие тёмные структуры в области вокруг точек бровей, без глаза."""
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)[:, :, 0]
-    thin_dark, area, threshold = brow_darkness(image_bgr, points, side, scale)
+    thin_dark, area, threshold = brow_darkness(image_bgr, points, side, scale, limit)
     spec = BROW[side]
     margin = max(3, int(0.07 * scale))
     mask = ((thin_dark > threshold) & (area > 0)).astype(np.uint8)
@@ -117,10 +129,11 @@ def analyse(image_bgr: np.ndarray, model_path: str) -> dict | None:
     level, moved, roll = level_eyes(image_bgr, points)
     scale = float(np.linalg.norm(moved[OUTER_CORNER["right"]] - moved[OUTER_CORNER["left"]]))
     out = {"roll": roll, "scale": scale, "image": level, "points": moved, "brows": {}}
+    limit = face_limit(level.shape[:2], moved, scale)
     for side in ("right", "left"):
-        mask = segment_brow(level, moved, side, scale)
+        mask = segment_brow(level, moved, side, scale, limit)
         head = tuple(moved[BROW[side]["head"]])
-        dark, _, threshold = brow_darkness(level, moved, side, scale)
+        dark, _, threshold = brow_darkness(level, moved, side, scale, limit)
         zone = grow_zone(mask, dark, ZONE_LOW * threshold, max(2, int(ZONE_REACH * scale)), max(3, int(0.03 * scale)) | 1)
         out["brows"][side] = {
             "mask": mask,
