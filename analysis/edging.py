@@ -54,7 +54,15 @@ def zone_features(face: np.ndarray, hair: np.ndarray, brow_y: float, chin_y: flo
     head[:, : max(0, int(left - 0.9 * scale))] = 0
     head[:, int(right + 0.9 * scale) :] = 0
     hy, hx = np.nonzero(head)
+    cols = np.arange(face.shape[1])
+    tops = np.array([np.nonzero(face[:, x])[0].min() if face[:, x].any() else np.nan for x in range(left, right + 1)])
+    xs_c = cols[left : right + 1]
+    corner = ((xs_c < left + 0.2 * width) & (xs_c > left + 0.05 * width)) | ((xs_c > right - 0.2 * width) & (xs_c < right - 0.05 * width))
+    valid = ~np.isnan(tops)
+    fit = np.polyfit(xs_c[valid], tops[valid], 2)
     out = {
+        "hairline_wave": float((np.nanmean(tops[corner]) - top) / scale),  # насколько углы линии роста ниже центра
+        "hairline_jag": float(np.std(tops[valid] - np.polyval(fit, xs_c[valid])) / scale),  # зубчатость, отклонение от параболы
         "forehead": (brow_y - top) / scale,  # от бровей до верха открытой зоны
         "face_width": width / scale,
         "hair_ratio": float(head.sum() / face.sum()),
@@ -82,20 +90,27 @@ def segment(image_bgr: np.ndarray, model_path: str) -> np.ndarray:
     return result.category_mask.numpy_view().copy().reshape(image_bgr.shape[:2])
 
 
-def fade_band(image_bgr: np.ndarray, face: np.ndarray, brow_y: float, scale: float) -> float | None:
-    """Средняя ширина перехода кожа-волосы у висков (чем шире, тем плавнее фейд), в долях масштаба."""
+def fade_band(image_bgr: np.ndarray, face: np.ndarray, categories: np.ndarray, brow_y: float, scale: float) -> float | None:
+    """Средняя ширина перехода кожа-волосы у висков (чем шире, тем плавнее фейд), в долях масштаба.
+
+    От края открытой зоны идём наружу, пока под нами волосы или кожа (не дальше 0.8 масштаба),
+    и берём профиль яркости от конца волос к коже.
+    """
     lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)[:, :, 0].astype(np.float32)
     lab = cv2.GaussianBlur(lab, (0, 0), max(1.0, 0.01 * scale))
-    reach = int(0.3 * scale)
+    inner, outer_max = int(0.6 * scale), int(0.8 * scale)
     widths = []
     for y in range(int(brow_y - 0.3 * scale), int(brow_y - 0.05 * scale)):
         row = np.nonzero(face[y])[0]
         if len(row) == 0:
             continue
         for edge, direction in ((row.min(), 1), (row.max(), -1)):  # от волос к коже
-            xs = np.arange(edge - direction * reach, edge + direction * reach, direction)
-            if xs.min() < 0 or xs.max() >= lab.shape[1]:
+            outer = 0
+            while outer < outer_max and 0 <= edge - direction * (outer + 1) < lab.shape[1] and categories[y, edge - direction * (outer + 1)] in (HAIR, FACE_SKIN):
+                outer += 1
+            if outer < 0.15 * scale or not 0 <= edge + direction * inner < lab.shape[1]:
                 continue
+            xs = np.arange(edge - direction * outer, edge + direction * inner, direction)
             width = edge_width(lab[y, xs], 1.0 / scale)
             if width is not None:
                 widths.append(width)
@@ -116,7 +131,7 @@ def edging(result: dict, categories: np.ndarray) -> dict | None:
     brow_y = (left.center[:, 1].mean() + right.center[:, 1].mean()) / 2
     features = zone_features(face, hair, brow_y, pts[152][1], scale)
     if features is not None:
-        features["fade_band"] = fade_band(result["image"], face, brow_y, scale)
+        features["fade_band"] = fade_band(result["image"], face, categories, brow_y, scale)
     return features
 
 
@@ -126,7 +141,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--seg-model", required=True)
     parser.add_argument("images", nargs="+", type=Path)
     args = parser.parse_args(argv)
-    print("снимок | лоб | ширина | объём волос | толщина над лбом | спуск слева | спуск справа | переход у виска")
+    print("снимок | лоб | ширина | объём волос | толщина над лбом | спуск слева | спуск справа | изгиб линии роста | зубчатость | переход у виска")
     for path in args.images:
         image = cv2.imread(str(path))
         result = None if image is None else analyse(image, args.face_model)
@@ -139,7 +154,8 @@ def main(argv: list[str] | None = None) -> None:
             continue
         cell = lambda v, f="{:.2f}": "-" if v is None else f.format(v)
         print(" | ".join([path.name, cell(features["forehead"]), cell(features["face_width"]), cell(features["hair_ratio"]), cell(features["hair_top"]),
-                          cell(features.get("side_left")), cell(features.get("side_right")), cell(features["fade_band"], "{:.3f}")]))
+                          cell(features.get("side_left")), cell(features.get("side_right")),
+                          cell(features["hairline_wave"]), cell(features["hairline_jag"], "{:.3f}"), cell(features["fade_band"], "{:.3f}")]))
 
 
 if __name__ == "__main__":

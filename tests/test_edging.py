@@ -30,6 +30,17 @@ class ZoneFeaturesTest(unittest.TestCase):
         self.assertAlmostEqual(features["hair_top"], 0.5, places=2)
         self.assertAlmostEqual(features["hair_ratio"], 50 * 160 / (160 * 140), places=2)
 
+    def test_straight_hairline_has_no_wave_or_jag(self):
+        features = zone_features(self.face, self.hair, brow_y=140, chin_y=260, scale=100.0)
+        self.assertAlmostEqual(features["hairline_wave"], 0.0, places=2)
+        self.assertAlmostEqual(features["hairline_jag"], 0.0, places=2)
+
+    def test_pointed_hairline_has_wave(self):
+        self.face[100:110, 80:100] = 0  # левый угол линии роста ниже
+        self.face[100:110, 200:220] = 0  # правый угол ниже
+        features = zone_features(self.face, self.hair, brow_y=140, chin_y=260, scale=100.0)
+        self.assertGreater(features["hairline_wave"], 0.05)
+
     def test_side_hair_reaches_lower_on_one_side(self):
         self.hair[100:200, 60:80] = 1  # слева волосы спускаются до строки 200
         features = zone_features(self.face, self.hair, brow_y=140, chin_y=260, scale=100.0)
