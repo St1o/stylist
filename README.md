@@ -6,6 +6,8 @@
 
 ## Запуск на компьютере
 
+Пошаговая инструкция для Windows и PyCharm: `LOCAL.md`. Коротко:
+
 ```
 pip install -r server/requirements.txt
 python -m server

@@ -13,6 +13,7 @@
 | API, WebSocket, загрузка кадров, токен | `server/app.py`, `server/config.py` |
 | Экран сканирования на телефоне (JS без сборки) | `web/app.js`, `web/index.html`, `web/style.css` |
 | Что умеет Safari на телефоне | `web/diag.html`, `web/diag.js` |
+| Запуск у владельца на Windows (PyCharm, туннель для HTTPS) | `LOCAL.md` |
 
 ## Правила
 - Сообщения программы и документы на русском.
