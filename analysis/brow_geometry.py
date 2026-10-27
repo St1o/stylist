@@ -27,6 +27,25 @@ class BrowProfile:
     tail_turn: float  # на сколько хвост загибается вниз относительно тела брови, градусы
 
 
+def grow_zone(core: np.ndarray, darkness: np.ndarray, low: float, radius: int, close: int) -> np.ndarray:
+    """Зона брови: ядро плюс более светлые тонкие волоски рядом с ним.
+
+    core - бинарная маска ядра, darkness - карта «тёмных тонких структур», low - порог слабее,
+    чем у ядра, radius - на сколько пикселей зона может выйти за ядро, close - размер
+    замыкания разрывов. Зона всегда содержит ядро и не уходит дальше radius от него.
+    """
+    import cv2
+
+    reach = cv2.dilate(core, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1)))
+    zone = ((darkness > low) & (reach > 0)) | (core > 0)
+    zone = cv2.morphologyEx(zone.astype(np.uint8), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close, close)))
+    zone = ((zone > 0) | (core > 0)).astype(np.uint8)
+    count, labels = cv2.connectedComponents(zone)
+    keep = np.unique(labels[core > 0])
+    keep = keep[keep > 0]
+    return np.isin(labels, keep).astype(np.uint8)
+
+
 def lid_gap(mask: np.ndarray, lid: tuple[float, float], band: int = 3) -> float | None:
     """Расстояние в пикселях от нижнего края брови до верхнего века под точкой века (x, y).
 

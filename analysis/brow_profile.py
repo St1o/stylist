@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .brow_geometry import BrowProfile, brow_profile, lid_gap
+from .brow_geometry import BrowProfile, brow_profile, grow_zone, lid_gap
 
 # индексы канонической сетки MediaPipe; «правый/левый» - у человека на снимке
 EYE_RING = {
@@ -29,6 +29,10 @@ OUTER_CORNER = {"right": 33, "left": 263}
 LID_TOP = {"right": 159, "left": 386}  # середина верхнего века
 INNER_CORNER = {"right": 133, "left": 362}
 BINS = 10
+# Зона (светлая периферия вокруг ядра): порог слабее порога ядра и допустимый вылет за ядро.
+# Подобраны по одной брови одного снимка (разметка владельца, IoU 0.84), на остальных не проверены.
+ZONE_LOW = 0.45
+ZONE_REACH = 0.03
 
 
 def detect_landmarks(image_bgr: np.ndarray, model_path: str) -> np.ndarray | None:
@@ -57,8 +61,8 @@ def level_eyes(image_bgr: np.ndarray, points: np.ndarray) -> tuple[np.ndarray, n
     return rotated, moved, roll
 
 
-def segment_brow(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: float) -> np.ndarray:
-    """Маска брови: тонкие тёмные структуры в области вокруг точек бровей, без глаза."""
+def brow_darkness(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: float) -> tuple[np.ndarray, np.ndarray, float]:
+    """Карта тонких тёмных структур, область поиска брови (без глаза) и порог ядра (Оцу)."""
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)[:, :, 0]
     spec = BROW[side]
     brow_pts = points[spec["up"] + spec["low"]].astype(np.int32)
@@ -76,6 +80,15 @@ def segment_brow(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: fl
     thin_dark = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size)))
     values = thin_dark[area > 0]
     threshold, _ = cv2.threshold(values.reshape(-1, 1), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return thin_dark, area, float(threshold)
+
+
+def segment_brow(image_bgr: np.ndarray, points: np.ndarray, side: str, scale: float) -> np.ndarray:
+    """Маска ядра брови: тонкие тёмные структуры в области вокруг точек бровей, без глаза."""
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)[:, :, 0]
+    thin_dark, area, threshold = brow_darkness(image_bgr, points, side, scale)
+    spec = BROW[side]
+    margin = max(3, int(0.07 * scale))
     mask = ((thin_dark > threshold) & (area > 0)).astype(np.uint8)
     close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (max(3, int(0.03 * scale)) | 1,) * 2)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
@@ -103,8 +116,11 @@ def analyse(image_bgr: np.ndarray, model_path: str) -> dict | None:
     for side in ("right", "left"):
         mask = segment_brow(level, moved, side, scale)
         head = tuple(moved[BROW[side]["head"]])
+        dark, _, threshold = brow_darkness(level, moved, side, scale)
+        zone = grow_zone(mask, dark, ZONE_LOW * threshold, max(2, int(ZONE_REACH * scale)), max(3, int(0.03 * scale)) | 1)
         out["brows"][side] = {
             "mask": mask,
+            "zone": zone,
             "profile": brow_profile(mask, head, BINS),
             "lid_gap": lid_gap(mask, tuple(moved[LID_TOP[side]])),
         }
@@ -115,6 +131,8 @@ def draw(result: dict) -> np.ndarray:
     vis = result["image"].copy()
     for side, color in (("right", (0, 255, 0)), ("left", (255, 160, 0))):
         brow = result["brows"][side]
+        zone_contours, _ = cv2.findContours(brow["zone"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        cv2.drawContours(vis, zone_contours, -1, (0, 255, 255), 1)
         contours, _ = cv2.findContours(brow["mask"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cv2.drawContours(vis, contours, -1, color, 1)
         profile: BrowProfile | None = brow["profile"]

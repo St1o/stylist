@@ -4,7 +4,7 @@ import unittest
 import cv2
 import numpy as np
 
-from analysis.brow_geometry import brow_profile, lid_gap
+from analysis.brow_geometry import brow_profile, grow_zone, lid_gap
 
 
 def brow_mask(center_y, half_width, x0=20, x1=220, size=(200, 260), flip=False):
@@ -55,6 +55,18 @@ class BrowGeometryTest(unittest.TestCase):
         mask[80:101, 20:180] = 1  # бровь, нижний край на строке 100
         self.assertEqual(lid_gap(mask, (100, 130)), 30.0)
         self.assertIsNone(lid_gap(mask, (10, 130)))  # над этой точкой века брови нет
+
+    def test_zone_takes_the_halo_but_not_far_noise(self):
+        darkness = np.zeros((120, 200), np.uint8)
+        core = np.zeros_like(darkness)
+        core[50:70, 40:160] = 1
+        darkness[core > 0] = 100
+        darkness[40:50, 60:140] = 50  # светлая периферия рядом с ядром
+        darkness[10:20, 60:100] = 60  # шум далеко от ядра
+        zone = grow_zone(core, darkness, low=30, radius=12, close=3)
+        self.assertEqual(zone[45, 100], 1)
+        self.assertEqual(zone[15, 80], 0)
+        self.assertTrue((zone[core > 0] == 1).all())
 
     def test_too_few_pixels(self):
         mask = np.zeros((50, 50), np.uint8)
