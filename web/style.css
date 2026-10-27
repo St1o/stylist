@@ -1,0 +1,70 @@
+:root {
+  --bg: #0f1115;
+  --panel: rgba(15, 17, 21, 0.82);
+  --text: #f2f4f8;
+  --muted: #9aa3b2;
+  --accent: #5bd1a5;
+  --warn: #ffb454;
+  --line: #2a2f3a;
+  --gutter: 16px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 -apple-system, system-ui, "Segoe UI", sans-serif;
+}
+
+#app { position: relative; height: 100dvh; overflow: hidden; }
+
+#video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+#video.mirrored { transform: scaleX(-1); }
+
+#overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: calc(env(safe-area-inset-top) + 12px) var(--gutter) 12px;
+  background: linear-gradient(var(--panel), transparent);
+}
+#step-title { font-weight: 600; font-size: 18px; }
+#step-text { color: var(--text); margin-top: 4px; }
+#hint { color: var(--warn); margin-top: 6px; min-height: 1.4em; font-weight: 600; }
+#meter { height: 6px; background: var(--line); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+#meter-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+
+#panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 12px var(--gutter) calc(env(safe-area-inset-bottom) + 12px);
+  background: var(--panel);
+  display: grid;
+  gap: 8px;
+}
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #1b1f27;
+  color: var(--text);
+  font: inherit;
+}
+button.primary { background: var(--accent); color: #07140e; border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: 0.45; }
+button[hidden] { display: none; }
+.toggle { display: flex; align-items: center; gap: 6px; min-height: 44px; }
+#status { color: var(--muted); font-size: 14px; min-height: 1.2em; }
+a { color: var(--muted); font-size: 14px; }

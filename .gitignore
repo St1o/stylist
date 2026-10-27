@@ -1,0 +1,26 @@
+# Лица и снимки в git не кладём (репозиторий приватный, но привычка важнее)
+data/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.heic
+*.heif
+*.mp4
+*.mov
+*.m4v
+*.webm
+# значки приложения можно хранить здесь
+!web/assets/*.png
+
+# секреты и локальные настройки
+.env
+local.env
+
+# Python и редакторы
+__pycache__/
+*.pyc
+.venv/
+venv/
+.idea/
+.vscode/

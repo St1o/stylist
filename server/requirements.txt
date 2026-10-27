@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+numpy>=1.26
+opencv-python-headless>=4.9
+# нужен только для тестов (TestClient)
+httpx>=0.27

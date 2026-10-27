@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1115">
+<title>Стилист</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+  <video id="video" playsinline muted autoplay></video>
+
+  <section id="overlay" aria-live="polite">
+    <div id="step-title">Стилист</div>
+    <div id="step-text">Нажмите «Начать скан». Камера включится, сервер будет вести вас по шагам.</div>
+    <div id="hint"></div>
+    <div id="meter"><div id="meter-fill"></div></div>
+  </section>
+
+  <section id="panel">
+    <button id="start" class="primary">Начать скан</button>
+    <div class="row">
+      <label class="toggle"><input type="checkbox" id="voice" checked> Голос</label>
+      <button id="flip">Камера: основная</button>
+    </div>
+    <div class="row">
+      <button id="force" hidden>Снять сейчас</button>
+      <button id="skip" hidden>Пропустить шаг</button>
+    </div>
+    <div id="status"></div>
+    <a href="diag.html">Диагностика телефона</a>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

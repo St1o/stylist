@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Диагностика телефона</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { overflow: auto; padding: 16px; }
+  pre { white-space: pre-wrap; word-break: break-word; background: #1b1f27; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+</style>
+</head>
+<body>
+<h1 style="font-size:20px;margin:0 0 8px">Диагностика телефона</h1>
+<p style="color:var(--muted);margin:0">Показывает, что реально доступно Safari на вашем телефоне: разрешения камеры, фонарик, зум, голос, WebGPU. Нажмите «Запустить» (камера спросит разрешение), потом «Скопировать» и пришлите результат в чат.</p>
+<div class="actions">
+  <button id="run" class="primary">Запустить</button>
+  <button id="copy">Скопировать</button>
+  <a href="./">К сканированию</a>
+</div>
+<pre id="out">Нажмите «Запустить».</pre>
+<script type="module" src="diag.js"></script>
+</body>
+</html>
