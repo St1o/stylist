@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .brow_geometry import BrowProfile, brow_profile
+from .brow_geometry import BrowProfile, brow_profile, lid_gap
 
 # индексы канонической сетки MediaPipe; «правый/левый» - у человека на снимке
 EYE_RING = {
@@ -26,6 +26,7 @@ BROW = {
     "left": dict(up=[300, 293, 334, 296, 336], low=[276, 283, 282, 295, 285], head=336),
 }
 OUTER_CORNER = {"right": 33, "left": 263}
+LID_TOP = {"right": 159, "left": 386}  # середина верхнего века
 INNER_CORNER = {"right": 133, "left": 362}
 BINS = 10
 
@@ -102,7 +103,11 @@ def analyse(image_bgr: np.ndarray, model_path: str) -> dict | None:
     for side in ("right", "left"):
         mask = segment_brow(level, moved, side, scale)
         head = tuple(moved[BROW[side]["head"]])
-        out["brows"][side] = {"mask": mask, "profile": brow_profile(mask, head, BINS)}
+        out["brows"][side] = {
+            "mask": mask,
+            "profile": brow_profile(mask, head, BINS),
+            "lid_gap": lid_gap(mask, tuple(moved[LID_TOP[side]])),
+        }
     return out
 
 
@@ -127,7 +132,9 @@ def report(name: str, result: dict) -> None:
             print(f"  {side}: бровь не найдена")
             continue
         widths = " ".join(f"{w / scale:.3f}" for w in p.width)
-        print(f"  {side}: длина {p.length / scale:.2f}, ось {p.axis_angle:+.1f}°, дуга {p.arch / scale:+.3f}; ширина от головы к хвосту: {widths}")
+        gap = result["brows"][side]["lid_gap"]
+        gap_text = "нет" if gap is None else f"{gap / scale:.3f}"
+        print(f"  {side}: просвет бровь-веко {gap_text}, длина {p.length / scale:.2f}, ось {p.axis_angle:+.1f}°, дуга {p.arch / scale:+.3f}; ширина от головы к хвосту: {widths}")
 
 
 def balance(result: dict) -> dict | None:

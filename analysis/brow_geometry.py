@@ -27,6 +27,17 @@ class BrowProfile:
     tail_turn: float  # на сколько хвост загибается вниз относительно тела брови, градусы
 
 
+def lid_gap(mask: np.ndarray, lid: tuple[float, float], band: int = 3) -> float | None:
+    """Расстояние в пикселях от нижнего края брови до верхнего века под точкой века (x, y).
+
+    None, если над этой точкой века в маске брови нет.
+    """
+    col = int(round(lid[0]))
+    rows = np.nonzero(mask[:, max(0, col - band) : col + band + 1].any(axis=1))[0]
+    rows = rows[rows < lid[1]]
+    return None if len(rows) == 0 else float(lid[1] - rows.max())
+
+
 def brow_profile(mask: np.ndarray, head: tuple[float, float], bins: int = 10) -> BrowProfile | None:
     """Профиль брови или None, если в маске слишком мало пикселей."""
     ys, xs = np.nonzero(mask)

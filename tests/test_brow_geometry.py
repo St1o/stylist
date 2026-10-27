@@ -4,7 +4,7 @@ import unittest
 import cv2
 import numpy as np
 
-from analysis.brow_geometry import brow_profile
+from analysis.brow_geometry import brow_profile, lid_gap
 
 
 def brow_mask(center_y, half_width, x0=20, x1=220, size=(200, 260), flip=False):
@@ -49,6 +49,12 @@ class BrowGeometryTest(unittest.TestCase):
         hooked = brow_profile(brow_mask(lambda x: 100 if x < 140 else 100 + 0.8 * (x - 140), lambda x: 5), head=(20, 100))
         self.assertGreater(hooked.tail_turn, 20)
         self.assertGreater(hooked.tail_tip[1], hooked.head_tip[1] + 30)
+
+    def test_lid_gap_is_measured_from_the_lower_edge(self):
+        mask = np.zeros((200, 200), np.uint8)
+        mask[80:101, 20:180] = 1  # бровь, нижний край на строке 100
+        self.assertEqual(lid_gap(mask, (100, 130)), 30.0)
+        self.assertIsNone(lid_gap(mask, (10, 130)))  # над этой точкой века брови нет
 
     def test_too_few_pixels(self):
         mask = np.zeros((50, 50), np.uint8)
