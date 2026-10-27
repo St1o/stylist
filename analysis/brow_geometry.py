@@ -63,6 +63,12 @@ def silhouette(core: np.ndarray, gap: int) -> np.ndarray:
     return (((outside == 0)[1:-1, 1:-1]) | (closed > 0)).astype(np.uint8)
 
 
+def row_extent(mask: np.ndarray, y: float) -> tuple[int, int] | None:
+    """Левая и правая граница маски на строке y, None если строка пуста."""
+    row = np.nonzero(mask[int(round(y))])[0]
+    return None if len(row) == 0 else (int(row[0]), int(row[-1]))
+
+
 def lid_gap(mask: np.ndarray, lid: tuple[float, float], band: int = 3) -> float | None:
     """Расстояние в пикселях от нижнего края брови до верхнего века под точкой века (x, y).
 

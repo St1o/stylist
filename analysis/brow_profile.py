@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .brow_geometry import BrowProfile, brow_profile, gap_profile, grow_zone, lid_gap
+from .brow_geometry import BrowProfile, brow_profile, gap_profile, grow_zone, lid_gap, row_extent
 
 # индексы канонической сетки MediaPipe; «правый/левый» - у человека на снимке
 EYE_RING = {
@@ -30,6 +30,8 @@ LID_TOP = {"right": 159, "left": 386}  # середина верхнего ве�
 # верхнее веко от внутреннего угла глаза к внешнему
 LID_ARC = {"right": [133, 173, 157, 158, 159, 160, 161, 246, 33], "left": [362, 398, 384, 385, 386, 387, 388, 466, 263]}
 INNER_CORNER = {"right": 133, "left": 362}
+FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176,
+             149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
 BINS = 10
 # Зона (светлая периферия вокруг ядра): порог слабее порога ядра и допустимый вылет за ядро.
 # Подобраны по одной брови одного снимка (разметка владельца, IoU 0.84), на остальных не проверены.
@@ -182,6 +184,39 @@ def balance(result: dict) -> dict | None:
     return out
 
 
+def face_relation(result: dict) -> dict | None:
+    """Брови относительно контура лица (овал готовой модели; он точен от уровня бровей вниз).
+
+    Верх овала у модели на лбу, а не по линии волос, поэтому высоту от линии волос она не даёт.
+    """
+    left = result["brows"]["right"]["profile"]  # слева на экране
+    right = result["brows"]["left"]["profile"]
+    if left is None or right is None:
+        return None
+    pts, scale = result["points"], result["scale"]
+    oval = np.zeros(result["image"].shape[:2], np.uint8)
+    cv2.fillPoly(oval, [pts[FACE_OVAL].astype(np.int32)], 1)
+    y = (left.center[:, 1].mean() + right.center[:, 1].mean()) / 2
+    extent = row_extent(oval, y)
+    if extent is None:
+        return None
+    lo, hi = extent
+    # контур у висков наклонный, поэтому поля мерим на уровне кончика каждого хвоста
+    tail_left, tail_right = row_extent(oval, left.tail_tip[1]), row_extent(oval, right.tail_tip[1])
+    if tail_left is None or tail_right is None:
+        return None
+    mid = (pts[INNER_CORNER["right"]][0] + pts[INNER_CORNER["left"]][0]) / 2
+    return {
+        "width": (hi - lo) / scale,  # ширина лица на уровне бровей
+        "span": (right.tail_tip[0] - left.tail_tip[0]) / (hi - lo),  # какую долю ширины занимают брови
+        "margin_left": (left.tail_tip[0] - tail_left[0]) / scale,  # от кончика хвоста до контура
+        "margin_right": (tail_right[1] - right.tail_tip[0]) / scale,
+        "head_left": (mid - left.head_tip[0]) / scale,  # от головы до середины между глазами
+        "head_right": (right.head_tip[0] - mid) / scale,
+        "brow_to_chin": (pts[152][1] - y) / scale,
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Профиль бровей по снимкам")
     parser.add_argument("--model", required=True, help="файл face_landmarker.task")
@@ -199,6 +234,13 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{path.name}: лицо не найдено")
             continue
         report(path.name, result)
+        relation = face_relation(result)
+        if relation:
+            print(
+                "  лицо на уровне бровей: ширина {width:.2f}, брови занимают {span:.0%} ширины; хвост до контура слева/справа "
+                "{margin_left:.3f}/{margin_right:.3f}; голова до середины {head_left:.3f}/{head_right:.3f}; от бровей до подбородка "
+                "{brow_to_chin:.2f}".format(**relation)
+            )
         diff = balance(result)
         if diff:
             print(
