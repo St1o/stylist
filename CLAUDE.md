@@ -13,6 +13,7 @@
 | API, WebSocket, загрузка кадров, токен | `server/app.py`, `server/config.py` |
 | Экран сканирования на телефоне (JS без сборки) | `web/app.js`, `web/index.html`, `web/style.css` |
 | Что умеет Safari на телефоне | `web/diag.html`, `web/diag.js` |
+| Форма брови по снимку: маска, осевая линия, профиль ширины (нужны mediapipe и файл модели лица, в git их нет) | `analysis/brow_geometry.py`, `analysis/brow_profile.py` |
 | Запуск у владельца на Windows (PyCharm, туннель для HTTPS) | `LOCAL.md` |
 
 ## Правила

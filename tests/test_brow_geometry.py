@@ -1,0 +1,51 @@
+import math
+import unittest
+
+import cv2
+import numpy as np
+
+from analysis.brow_geometry import brow_profile
+
+
+def brow_mask(center_y, half_width, x0=20, x1=220, size=(200, 260), flip=False):
+    """Синтетическая бровь: центр y(x) и полутолщина h(x), голова слева (x0)."""
+    xs = np.arange(x0, x1 + 1)
+    top = np.column_stack([xs, [center_y(x) - half_width(x) for x in xs]])
+    bottom = np.column_stack([xs[::-1], [center_y(x) + half_width(x) for x in xs[::-1]]])
+    mask = np.zeros(size, np.uint8)
+    cv2.fillPoly(mask, [np.round(np.vstack([top, bottom])).astype(np.int32)], 1)
+    if flip:
+        mask = mask[:, ::-1].copy()
+    return mask
+
+
+class BrowGeometryTest(unittest.TestCase):
+    def test_tapered_brow_gets_narrower_and_tail_up(self):
+        mask = brow_mask(lambda x: 100 - 0.05 * (x - 20), lambda x: 10 - 8 * (x - 20) / 200)
+        profile = brow_profile(mask, head=(20, 100))
+        self.assertAlmostEqual(profile.axis_angle, math.degrees(math.atan(0.05)), delta=1.0)
+        self.assertAlmostEqual(profile.width[0], 19, delta=3)
+        self.assertLess(profile.width[-1], profile.width[0] / 2)
+        self.assertAlmostEqual(profile.arch, 0, delta=1.5)
+        self.assertAlmostEqual(profile.length, 200, delta=6)
+
+    def test_arch_is_positive_when_the_middle_is_higher(self):
+        mask = brow_mask(lambda x: 100 - 20 * math.sin(math.pi * (x - 20) / 200), lambda x: 5)
+        self.assertGreater(brow_profile(mask, head=(20, 100)).arch, 10)
+
+    def test_droop_is_negative_and_side_does_not_matter(self):
+        droop = lambda x: 100 + 0.08 * (x - 20)
+        left_side = brow_profile(brow_mask(droop, lambda x: 5), head=(20, 100))
+        self.assertLess(left_side.axis_angle, -3)
+        # зеркальная бровь другой стороны: голова справа, хвост слева
+        mirrored = brow_profile(brow_mask(droop, lambda x: 5, flip=True), head=(260 - 1 - 20, 100))
+        self.assertAlmostEqual(mirrored.axis_angle, left_side.axis_angle, delta=0.5)
+
+    def test_too_few_pixels(self):
+        mask = np.zeros((50, 50), np.uint8)
+        mask[10, 10:15] = 1
+        self.assertIsNone(brow_profile(mask, head=(10, 10)))
+
+
+if __name__ == "__main__":
+    unittest.main()
