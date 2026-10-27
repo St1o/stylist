@@ -4,7 +4,7 @@ import unittest
 import cv2
 import numpy as np
 
-from analysis.brow_geometry import brow_profile, grow_zone, lid_gap
+from analysis.brow_geometry import brow_profile, grow_zone, lid_gap, silhouette
 
 
 def brow_mask(center_y, half_width, x0=20, x1=220, size=(200, 260), flip=False):
@@ -67,6 +67,18 @@ class BrowGeometryTest(unittest.TestCase):
         self.assertEqual(zone[45, 100], 1)
         self.assertEqual(zone[15, 80], 0)
         self.assertTrue((zone[core > 0] == 1).all())
+
+    def test_silhouette_merges_parts_only_across_small_gaps(self):
+        core = np.zeros((40, 80), np.uint8)
+        core[10:30, 10:35] = 1
+        core[10:30, 41:70] = 1  # щель между частями шириной 6
+        self.assertEqual(cv2.connectedComponents(silhouette(core, 3))[0] - 1, 2)
+        self.assertEqual(cv2.connectedComponents(silhouette(core, 9))[0] - 1, 1)
+
+    def test_silhouette_fills_holes(self):
+        core = np.ones((30, 30), np.uint8)
+        core[10:20, 10:20] = 0
+        self.assertEqual(int(silhouette(core, 1).sum()), 900)
 
     def test_too_few_pixels(self):
         mask = np.zeros((50, 50), np.uint8)

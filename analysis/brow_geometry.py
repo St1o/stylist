@@ -46,6 +46,23 @@ def grow_zone(core: np.ndarray, darkness: np.ndarray, low: float, radius: int, c
     return np.isin(labels, keep).astype(np.uint8)
 
 
+def silhouette(core: np.ndarray, gap: int) -> np.ndarray:
+    """Как бровь читается на расстоянии: щели уже gap пикселей замыкаются, внутренние дыры заливаются.
+
+    Чем больше терпимая щель, тем более цельной, «блоком» читается бровь; при малой щели
+    видны отдельные пучки и части.
+    """
+    import cv2
+
+    closed = core.astype(np.uint8)
+    if gap > 1:
+        closed = cv2.morphologyEx(closed, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (gap, gap)))
+    padded = cv2.copyMakeBorder(closed, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+    outside = padded.copy()
+    cv2.floodFill(outside, None, (0, 0), 1)
+    return (((outside == 0)[1:-1, 1:-1]) | (closed > 0)).astype(np.uint8)
+
+
 def lid_gap(mask: np.ndarray, lid: tuple[float, float], band: int = 3) -> float | None:
     """Расстояние в пикселях от нижнего края брови до верхнего века под точкой века (x, y).
 
