@@ -69,6 +69,18 @@ def row_extent(mask: np.ndarray, y: float) -> tuple[int, int] | None:
     return None if len(row) == 0 else (int(row[0]), int(row[-1]))
 
 
+def light_imbalance(lightness: np.ndarray, region: np.ndarray, mid_x: float) -> tuple[float, float, float]:
+    """Средняя яркость слева и справа от середины лица и относительная разница (справа минус слева).
+
+    lightness - канал яркости, region - бинарная маска участка кожи. Если разница заметная,
+    по маскам нельзя судить об асимметрии бровей: тень или блик меняют видимую толщину и длину.
+    """
+    ys, xs = np.nonzero(region)
+    left = float(lightness[ys[xs < mid_x], xs[xs < mid_x]].mean()) if (xs < mid_x).any() else float("nan")
+    right = float(lightness[ys[xs >= mid_x], xs[xs >= mid_x]].mean()) if (xs >= mid_x).any() else float("nan")
+    return left, right, (right - left) / ((left + right) / 2)
+
+
 def lid_gap(mask: np.ndarray, lid: tuple[float, float], band: int = 3) -> float | None:
     """Расстояние в пикселях от нижнего края брови до верхнего века под точкой века (x, y).
 

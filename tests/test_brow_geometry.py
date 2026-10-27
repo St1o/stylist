@@ -4,7 +4,7 @@ import unittest
 import cv2
 import numpy as np
 
-from analysis.brow_geometry import brow_profile, gap_profile, grow_zone, lid_gap, row_extent, silhouette
+from analysis.brow_geometry import brow_profile, gap_profile, grow_zone, lid_gap, light_imbalance, row_extent, silhouette
 
 
 def brow_mask(center_y, half_width, x0=20, x1=220, size=(200, 260), flip=False):
@@ -94,6 +94,15 @@ class BrowGeometryTest(unittest.TestCase):
         mask[5, 10:31] = 1
         self.assertEqual(row_extent(mask, 5), (10, 30))
         self.assertIsNone(row_extent(mask, 6))
+
+    def test_light_imbalance(self):
+        lightness = np.full((20, 40), 100, np.float32)
+        lightness[:, 20:] = 140  # справа светлее
+        region = np.ones((20, 40), np.uint8)
+        left, right, diff = light_imbalance(lightness, region, mid_x=20)
+        self.assertEqual((left, right), (100.0, 140.0))
+        self.assertAlmostEqual(diff, 40 / 120, places=3)
+        self.assertEqual(light_imbalance(lightness, region, mid_x=0)[2] != 0, True)
 
     def test_too_few_pixels(self):
         mask = np.zeros((50, 50), np.uint8)

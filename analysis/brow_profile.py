@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .brow_geometry import BrowProfile, brow_profile, gap_profile, grow_zone, lid_gap, row_extent
+from .brow_geometry import BrowProfile, brow_profile, gap_profile, grow_zone, lid_gap, light_imbalance, row_extent
 
 # индексы канонической сетки MediaPipe; «правый/левый» - у человека на снимке
 EYE_RING = {
@@ -130,6 +130,11 @@ def analyse(image_bgr: np.ndarray, model_path: str) -> dict | None:
     scale = float(np.linalg.norm(moved[OUTER_CORNER["right"]] - moved[OUTER_CORNER["left"]]))
     out = {"roll": roll, "scale": scale, "image": level, "points": moved, "brows": {}}
     limit = face_limit(level.shape[:2], moved, scale)
+    skin = np.zeros(level.shape[:2], np.uint8)
+    cv2.fillPoly(skin, [moved[FACE_OVAL].astype(np.int32)], 1)
+    skin[: int(min(moved[107][1], moved[336][1]) - 0.15 * scale)] = 0
+    skin[int(moved[4][1]) :] = 0
+    out["light"] = light_imbalance(cv2.cvtColor(level, cv2.COLOR_BGR2LAB)[:, :, 0].astype(np.float32), skin, (moved[133][0] + moved[362][0]) / 2)
     for side in ("right", "left"):
         mask = segment_brow(level, moved, side, scale, limit)
         head = tuple(moved[BROW[side]["head"]])
@@ -159,8 +164,14 @@ def draw(result: dict) -> np.ndarray:
     return vis
 
 
+LIGHT_WARNING = 0.12  # относительная разница яркости слева и справа, после которой выводы об асимметрии ненадёжны
+
+
 def report(name: str, result: dict) -> None:
     scale = result["scale"]
+    left_light, right_light, light_diff = result["light"]
+    warning = " - НЕРАВНОМЕРНОЕ, асимметрии бровей по этому снимку не доверяем" if abs(light_diff) > LIGHT_WARNING else ""
+    print(f"{name}: освещение лица слева / справа L {left_light:.0f} / {right_light:.0f}, разница {light_diff:+.0%}{warning}")
     print(f"\n{name}: масштаб (между внешними углами глаз) {scale:.0f} px, наклон головы набок {result['roll']:+.1f}°")
     for side in ("right", "left"):
         p: BrowProfile | None = result["brows"][side]["profile"]
