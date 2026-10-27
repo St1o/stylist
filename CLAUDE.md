@@ -14,6 +14,7 @@
 | Экран сканирования на телефоне (JS без сборки) | `web/app.js`, `web/index.html`, `web/style.css` |
 | Что умеет Safari на телефоне | `web/diag.html`, `web/diag.js` |
 | Форма брови по снимку: маска, осевая линия, профиль ширины (нужны mediapipe и файл модели лица, в git их нет) | `analysis/brow_geometry.py`, `analysis/brow_profile.py` |
+| Окантовка по снимку: открытая зона лица, зона головы, спуск волос по бокам, переход у виска (нужны mediapipe, файл модели сегментации selfie_multiclass_256x256 и модель лица, в git их нет) | `analysis/edging.py` |
 | Запуск у владельца на Windows (PyCharm, туннель для HTTPS) | `LOCAL.md` |
 
 ## Правила
